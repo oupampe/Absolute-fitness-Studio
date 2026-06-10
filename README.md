@@ -68,11 +68,17 @@ Open <http://localhost:3000>. Log in with the seeded demo member to explore `/da
 | Script | Purpose |
 |---|---|
 | `npm run dev` | Local dev server |
-| `npm run build` | `prisma generate && prisma migrate deploy && next build` (production) |
-| `npm run build:local` | `prisma generate && next build` (build without migrating) |
+| `npm run build` | `prisma generate && next build` (production — **does not touch the DB**) |
 | `npm start` | `next start -p $PORT` (binds to Hostinger's `$PORT`) |
+| `npm run db:push` | `prisma db push` — sync the schema to the database (no migration history) |
+| `npm run db:migrate` | `prisma migrate dev` — create + apply a migration locally |
+| `npm run db:deploy` | `prisma migrate deploy` — apply existing migrations to a DB |
 | `npm run db:seed` | Seed the demo member |
-| `npm run db:migrate` | `prisma migrate dev` |
+
+> **The build never connects to the database.** Schema changes are applied
+> separately (`db:push` or `db:deploy`) so a deploy can't fail on DB
+> connectivity. Run the schema step once against your live DB before/after the
+> first deploy.
 
 ## Deployment — Hostinger Business (Node.js) + Supabase
 
@@ -83,18 +89,21 @@ Hostinger runs a persistent Node server (`next start`), so this is a standard lo
 3. Node version **20.x**; build command `npm run build`, start command `npm start`.
 4. Add **all** env vars from `.env.example` in the app's Environment Variables panel. Set `AUTH_URL`
    to your live domain (e.g. `https://absolutefitnessstudio.co.za`).
-5. Map your domain (Hostinger handles SSL).
-6. Update OAuth redirect URIs to
+5. **Create the database schema once** (the build does *not* do this). From your machine, with the
+   real Supabase strings in `.env`, run `npm run db:push` — this creates all the tables in Supabase.
+   Optionally `npm run db:seed` to add the demo member. (You only repeat this when the schema changes.)
+6. Map your domain (Hostinger handles SSL).
+7. Update OAuth redirect URIs to
    `https://YOUR-DOMAIN/api/auth/callback/{google,facebook}` once you add OAuth.
-7. Ship updates by pushing to the connected branch and redeploying from hPanel.
+8. Ship updates by pushing to the connected branch and redeploying from hPanel.
 
-**Two connection strings are required even on a persistent server:** `DATABASE_URL` uses the Supabase
-pooler (6543) for runtime; `DIRECT_URL` uses the direct connection (5432) for Prisma migrations. The
-`build` script runs `prisma migrate deploy` against `DIRECT_URL` automatically on each deploy.
+**Two connection strings:** `DATABASE_URL` uses the Supabase pooler (6543) for app runtime; `DIRECT_URL`
+uses the direct connection (5432) and is only needed when you run schema commands (`db:push`/`db:deploy`).
+Set both in Hostinger's env panel. Because the build no longer connects to the database, a deploy can't
+fail on DB connectivity — schema is applied separately in step 5.
 
-After the first deploy migrates the DB, enable **Row Level Security** on the tables in Supabase. Note
-the free tier sleeps after ~1 week idle and has no auto-backups — upgrade to Pro once you have real
-members.
+After the schema is created, enable **Row Level Security** on the tables in Supabase. Note the free
+tier sleeps after ~1 week idle and has no auto-backups — upgrade to Pro once you have real members.
 
 ## Project structure
 
